@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>PC Migration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#157878">
+    <link rel="stylesheet" href="css/normalize.css">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" href="css/cayman.css">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Postcopy migration in Qemu: Recovery from a broken network connection</h1>
+      <h2 class="project-tagline">Google summer of code 2016</h2>
+      <a href="https://github.com/harisphnx/qemu_gsoc2016" class="btn">View on GitHub</a>
+      <a href="https://github.com/harisphnx/qemu_gsoc2016/archive/master.zip" class="btn">Download .zip</a>
+      <a href="https://github.com/harisphnx/qemu_gsoc2016/archive/master.tar.gz" class="btn">Download .tar.gz</a>
+    </section>
+
+	
+	
+	
+    <section class="main-content">
+	<h1>
+      <a id="user-content-header-1" class="anchor" href="#header-1" aria-hidden="true"><span class="octicon octicon-link"></span></a>Introduction</h1>
+	  
+	  <h2>
+      <a id="user-content-header-2" class="anchor" href="#header-2" aria-hidden="true"><span class="octicon octicon-link"></span></a>About Qemu</h2>
+	  <p>Qemu (short for Quick Emulator) is a free and open-source hosted hypervisor that performs hardware virtualization.</p>
+	  
+	  <p>Qemu is a hosted virtual machine monitor: It emulates CPUs through dynamic binary translation and provides a set of device models, 
+	  enabling it to run a variety of unmodified guest operating systems. It also can be used together with KVM in order to run virtual machines at 
+	  near-native speed (requiring hardware virtualization extensions on x86 machines). Qemu can also be used purely for CPU emulation for user-level 
+	  processes, allowing applications compiled for one architecture to be run on another.</p>
+	  
+	  <p><em>(Taken from <a href="https://en.wikipedia.org/wiki/QEMU">Wikipedia</a>)</em></p>
+	  
+	  <h2>
+      <a id="user-content-header-2" class="anchor" href="#header-2" aria-hidden="true"><span class="octicon octicon-link"></span></a>The Project</h2>
+	  <p>Live Migration is a process of moving a running virtual machine from one physical system to another. There are usually two ways, precopy and postcopy. 
+	  Postcopy migration is used for virtual machines which have a high memory dirtying rate, (higher than the bandwidth of the network that will be used to perform migration). 
+	  The disadvantage of postcopy migration is, if there is a network failure then we are left with an inconsistent vm at both the source and the destination side.</p>
+	  
+	  <p>The aim of this project is to recover from the network failure, and complete the migration process. The project will include completing the process of sending 
+	  the leftover memory pages.</p>
+	  
+	  <p>Project would start by making sure that the threads do not fail at both the source and destination end. This would be followed by 
+	  re-establishing the network connection between the source and the destination. After this is done, the migration process is restarted. The vCPUs on the destination 
+	  side were suspended due to page faults, so these pages are transferred first. Followed by the rest of the leftover pages on the source side.</p>
+	
+	
+	<h1>
+      <a id="user-content-header-1" class="anchor" href="#header-1" aria-hidden="true"><span class="octicon octicon-link"></span></a>How to Use</h1>
+	  <p>Once the network fails, wait for both the sides to error out and go into recovery. This can be understood by the error messages printed at
+	  the terminal.</p>
+	  
+	  <p>Once both the sides are under recovery, the reconnection can be tried. First in destination side console, enter the <strong>migrate_incoming</strong> command with the new
+        -r flaga along with the same details as used in the beginning.</p>
+	  <p>Then, same goes for the source side. Use the <strong>migrate</strong> command with the new -r flag and similar details as used in the beginning.</p>
+	
+	
+	<h1>
+      <a id="user-content-header-1" class="anchor" href="#header-1" aria-hidden="true"><span class="octicon octicon-link"></span></a>Work Done</h1>
+	  
+	  <p><em>(All commits can be found <a href="https://github.com/harisphnx/qemu_gsoc2016/commits?author=harisphnx">here</a>)</em></p>
+	  
+	  <h2>
+      <a id="user-content-header-2" class="anchor" href="#header-2" aria-hidden="true"><span class="octicon octicon-link"></span></a>Detailed explanation</h2>
+	  
+	  <h3>
+      <a id="user-content-header-3" class="anchor" href="#header-3" aria-hidden="true"><span class="octicon octicon-link"></span></a>Commit 1</h3>
+	  
+	  <p><strong><a href="https://github.com/harisphnx/qemu_gsoc2016/commit/3e8fe73412f89f4bb4985a1d896aded23497d950">Migration: Reconnect network in case of network failure during pc migration (source)</a></strong></p>
+	  
+	  <p>The migration thread on the source side is kept alive (if the network failure happens during a postcopy migration). The thread waits for 
+	  the reconnection to take place.</p>
+	  
+	  <p>When the user enters the (newly created) reconnection command at the source side, it triggers the code to try to establish a connection to
+	  a destination side. After the connection is established, it is tested whether there is an ongoing migration waiting for reconnection or not.
+	  If there is, then the waiting thread is awaken (using mutexes). The waiting thread continues with its migration process with the newly created
+	  connection.</p>
+	  
+	  <h3>
+      <a id="user-content-header-3" class="anchor" href="#header-3" aria-hidden="true"><span class="octicon octicon-link"></span></a>Commit 2</h3>
+	  
+	  <p><strong><a href="https://github.com/harisphnx/qemu_gsoc2016/commit/66ead6dab4b3ee9ab14aee9cc1ce2b6a238206ab">Migration : General additions for migration recovery </a></strong></p>
+	  
+	  <p>The migration recovery needs mutexes to signal a sleeping thread. Also, after the recovery, the older error needs to be cleared, 
+	  for the migration to continue normally.</p>
+	  
+	  <h3>
+      <a id="user-content-header-3" class="anchor" href="#header-3" aria-hidden="true"><span class="octicon octicon-link"></span></a>Commit 3</h3>
+	  
+	  <p><strong><a href="https://github.com/harisphnx/qemu_gsoc2016/commit/9c1745754baffcefdf5f74c5c00e248c8ca19d0a"> Migration: Reconnect network in case of network failure during pc migration (destination)</a></strong></p>
+	  
+	  <p>The migration thread on the kept side is kept alive (if the network failure happens during a postcopy migration). The thread waits for 
+	  the reconnection to take place.</p>
+	  
+	  <p>When the user enters the (newly created) reconnection command at the destination side, it triggers the code to try to establish a connection to
+	  a source side. After the connection is established, it is tested whether there is an ongoing migration waiting for reconnection or not.
+	  If there is, then the waiting thread is awaken (using mutexes). The waiting thread continues with its migration process with the newly created
+	  connection.</p>
+	  
+	  <h3>
+      <a id="user-content-header-3" class="anchor" href="#header-3" aria-hidden="true"><span class="octicon octicon-link"></span></a>Commit 4</h3>
+	  
+	  <p><strong><a href="https://github.com/harisphnx/qemu_gsoc2016/commit/b57c998a3fc379e9f1f28c0d37eb2b0edf26d710">Migration: New bitmap for postcopy migration failure </a></strong></p>
+	  
+	  <p>Now that the connection is established between the source and the destination, they start with their normal task of sending and receiving pages.
+	  But, there are some memory pages that has to be recovered. When the network failure would have happened, source would have send some pages that 
+	  destination would not have received. These pages would not be sent again, since source thinks that it has already sent them. Therefore, to keep
+	  track of these lost pages, a new bitmap has to be added.</p>
+	  
+	  <p>The new bitmap resides on the destination side and keeps track of all the pages receieved. The bitmap is updated everytime a page is received.</p>
+	  
+	  <h3>
+      <a id="user-content-header-3" class="anchor" href="#header-3" aria-hidden="true"><span class="octicon octicon-link"></span></a>Commit 5</h3>
+	  
+	  <p><strong><a href="https://github.com/harisphnx/qemu_gsoc2016/commit/ea4f38c25ae094255f66b9e9a5bab8aaa03c3275"> Migration: Recovering pages lost due to n/w failure during pc migration (source)</a></strong></p>
+	  
+	  <p>The pages that were lost due to the network failure has to be sent. This is triggered only if the migration has gone through a reconnection phase. 
+	  If the migration has gone through a reconnection phase, then the source sends a command to the destination, to request for the lost pages.</p>
+	  
+	  <h3>
+      <a id="user-content-header-3" class="anchor" href="#header-3" aria-hidden="true"><span class="octicon octicon-link"></span></a>Commit 6</h3>
+	  
+	  <p><strong><a href="https://github.com/harisphnx/qemu_gsoc2016/commit/76236298bad6e4f23edb57d319291597c72e8a93"> Migration: Recovering pages lost due to n/w failure during pc migration (destination)</a></strong></p>
+	  
+	  <p>Once the destination receives a command to request for the lost pages, it creates a thread which goes through the bitmap (which was keeping track 
+	  of the pages being received) and requests for pages that were not received.</p>
+	  
+	  
+	  <h2>
+      <a id="user-content-header-2" class="anchor" href="#header-2" aria-hidden="true"><span class="octicon octicon-link"></span></a>Challenges and Work left to be done</h2>
+	  
+	  <p>One of the biggest challenge was to resend the lost pages (due to network failure). Dr David Alan Gilbert (my mentor) and I have had many discussion about this 
+	  during and before the project. There was not a definite answer to this problem. Should we resend a chunk of pages that were immediately sent before the network 
+	  failure? Should we try to restart the VM back at source? In the end, we ended up deciding, that an extra bitmap on the destination side would be the best way 
+	  to go about solving this issue.</p>
+	  
+	  <p>There were a lot of unseen and unexpected things that popped up during the coding of this project. Like the return value that the migration socket 
+	  would give in case of a network failure. During testing, the migration thread returned different errors at different scenarios. It became extremely 
+	  difficult to understand which one to look for. Since there are other failures for which the migration should really fail and not go into recovery. 
+	  For now, we have settled for an error that seems to be working. But, some amount of testing has to be done to make sure that it works in all the scenarios</p>
+	  
+	  <p>Another issue that slowed down the project is, just after reconnection, the VM's uses to suddenly fail and go into recovery again. This issue still 
+	  persists and needs to be looked into. Most probably there is a subtle bug in the reconnection code that is causing this.</p>
+	  
+	  
+	<h1>
+      <a id="user-content-header-1" class="anchor" href="#header-1" aria-hidden="true"><span class="octicon octicon-link"></span></a>Useful Links</h1>
+	  
+	  <ul class="task-list">
+      <li><a href="https://drive.google.com/drive/folders/0BwBES405_zaiMmhRR1AxQUt6Rlk?usp=sharing">Google folder containing the patches.</a></li>
+	  <li><a href="#">Link to the email sent to mailing list.</a></li>
+      </ul>
+
+	  
+	
+	<h1>
+      <a id="user-content-header-1" class="anchor" href="#header-1" aria-hidden="true"><span class="octicon octicon-link"></span></a>Conclusion</h1>
+	  
+	  <p>I would like to thank my mentor Dr David Alan Gilbert for the support and the help he provided. He was always there for me, no matter what the
+	  problem was. It would not have been possible without him.</p>
+	  
+	  <p>I learned a lot from this project. As such, I have all the intentions of continuing my contribution to the qemu community</p>
+	
+		  
+	<h1>
+      <a id="user-content-header-1" class="anchor" href="#header-1" aria-hidden="true"><span class="octicon octicon-link"></span></a>Contact</h1>
+	  
+	  <p>In case there are any queries, send an email to haris.phnx@gmail.com; or drop by the <a href="http://chat.stackoverflow.com/rooms/54304/c">chatroom</a>.</p>
+
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/harisphnx/qemu_gsoc2016">qemu_gsoc2016</a> is maintained by <a href="https://github.com/harisphnx">Md Haris Iqbal</a>.</span>
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  </body>
+</html>
